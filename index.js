@@ -1,38 +1,42 @@
 const { TwitterApi, ETwitterStreamEvent } = require("twitter-api-v2")
-
-// OAuth 1.0a (User context)
-// const userClient = new TwitterApi({
-//   appKey: 'XJvBgIntlTvVFIsKBaigyDBmP',
-//   appSecret: 'QeHmyLbIsGCnZkAnXdISzusz6PfODDTUuvFdJZJnDLGHJgLaE4',
-//   // Following access tokens are not required if you are
-//   // at part 1 of user-auth process (ask for a request token)
-//   // or if you want a app-only client (see below)
-//   accessToken: '3270434107-VpqyrpoMLmqqq4IQusFDwsNclB2EPYy2ieIbFrj',
-//   accessSecret: '56DPCRkrscjgZluq1x3tn4MRf19OQLE3p3OAjabwhtCbu',
-// });
+const secret = require("./secret.json")
 
 // OAuth2 (app-only or user context)
 // Create a client with an already known bearer token
-const client = new TwitterApi('AAAAAAAAAAAAAAAAAAAAAIxTkAEAAAAAtmHK%2BCox2D35bqvxrCM5m7ZGrCU%3DBnALfg1QgeRZoNwW9UCPVY6cPw2jYcy2ZIobX5WS5V8K10zPgk');
+const client = new TwitterApi(secret.token);
 
 async function startstream() {
+  // Get and delete old rules if needed
+  const rules = await client.v2.streamRules();
+  console.log(rules)
 
-  const tweets = await client.v2.listTweets('755078760567828481', { 'media.fields': ['media_key'], expansions: ['attachments.media_keys'] });
+  if (rules.data?.length) {
+    await client.v2.updateStreamRules({
+      delete: { ids: rules.data.map(rule => rule.id) },
+    });
+  }
 
-  console.log(tweets)
-  
-  // // Get and delete old rules if needed
-  // const rules = await client.v2.streamRules();
-  // if (rules.data?.length) {
-  //   await client.v2.updateStreamRules({
-  //     delete: { ids: rules.data.map(rule => rule.id) },
-  //   });
-  //  }
+  // Add our rules
+  await client.v2.updateStreamRules({
+    add: [{         
+      "value": "followers_count:250000",
+    }]
+    //value: 'context:31,1435307090197684225 lang:en followers_count:100000' }],
+  });
 
-  // // Add our rules
-  // await client.v2.updateStreamRules({
-  //   add: [{ value: 'context:31,1435307090197684225 lang:en followers_count:100000' }],
-  // });
+  // Not needed to await this!
+  const stream = client.v2.sampleStream({ autoConnect: false });
+
+  // Assign yor event handlers
+  // Emitted on Tweet
+  stream.on(ETwitterStreamEvent.Data, (tweet)=>{
+  });
+  // Emitted only on initial connection success
+  stream.on(ETwitterStreamEvent.Connected, () => console.log('Stream is started.'));
+
+  // Start stream!
+  await stream.connect({ autoReconnect: true, autoReconnectRetries: Infinity });
+
 
   // // if the tweet is a retweet, include only the underlying tweet if it's the first time it's been referenced
   // // // don't include replies
